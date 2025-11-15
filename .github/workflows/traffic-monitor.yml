@@ -1,0 +1,124 @@
+name: Traffic Monitor
+
+on:
+  schedule:
+    # Morning monitoring: 10:00 AM IST = 4:30 AM UTC
+    - cron: '30 4 * * *'
+    # Morning monitoring: 10:10 AM IST = 4:40 AM UTC
+    - cron: '40 4 * * *'
+    # Morning monitoring: 10:20 AM IST = 4:50 AM UTC
+    - cron: '50 4 * * *'
+    # Morning monitoring: 10:30 AM IST = 5:00 AM UTC
+    - cron: '0 5 * * *'
+    # Morning monitoring: 10:40 AM IST = 5:10 AM UTC
+    - cron: '10 5 * * *'
+    # Morning monitoring: 10:50 AM IST = 5:20 AM UTC
+    - cron: '20 5 * * *'
+    # Morning monitoring: 11:00 AM IST = 5:30 AM UTC
+    - cron: '30 5 * * *'
+    # Morning monitoring: 11:10 AM IST = 5:40 AM UTC
+    - cron: '40 5 * * *'
+    # Morning monitoring: 11:20 AM IST = 5:50 AM UTC
+    - cron: '50 5 * * *'
+    # Morning monitoring: 11:30 AM IST = 6:00 AM UTC
+    - cron: '0 6 * * *'
+    # Morning monitoring: 11:40 AM IST = 6:10 AM UTC
+    - cron: '10 6 * * *'
+    # Morning monitoring: 11:50 AM IST = 6:20 AM UTC
+    - cron: '20 6 * * *'
+    
+    # Evening monitoring: 4:00 PM IST = 10:30 AM UTC
+    - cron: '30 10 * * *'
+    # Evening monitoring: 4:10 PM IST = 10:40 AM UTC
+    - cron: '40 10 * * *'
+    # Evening monitoring: 4:20 PM IST = 10:50 AM UTC
+    - cron: '50 10 * * *'
+    # Evening monitoring: 4:30 PM IST = 11:00 AM UTC
+    - cron: '0 11 * * *'
+    # Evening monitoring: 4:40 PM IST = 11:10 AM UTC
+    - cron: '10 11 * * *'
+    # Evening monitoring: 4:50 PM IST = 11:20 AM UTC
+    - cron: '20 11 * * *'
+    # Evening monitoring: 5:00 PM IST = 11:30 AM UTC
+    - cron: '30 11 * * *'
+    # Evening monitoring: 5:10 PM IST = 11:40 AM UTC
+    - cron: '40 11 * * *'
+    # Evening monitoring: 5:20 PM IST = 11:50 AM UTC
+    - cron: '50 11 * * *'
+    # Evening monitoring: 5:30 PM IST = 12:00 PM UTC
+    - cron: '0 12 * * *'
+    # Evening monitoring: 5:40 PM IST = 12:10 PM UTC
+    - cron: '10 12 * * *'
+    # Evening monitoring: 5:50 PM IST = 12:20 PM UTC
+    - cron: '20 12 * * *'
+
+  # Allow manual triggering from GitHub UI
+  workflow_dispatch:
+    inputs:
+      direction:
+        description: 'Route direction'
+        required: true
+        default: 'home_to_office'
+        type: choice
+        options:
+          - home_to_office
+          - office_to_home
+
+jobs:
+  monitor-traffic:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements_core.txt
+        playwright install chromium
+        playwright install-deps chromium
+    
+    - name: Determine direction based on time
+      id: direction
+      run: |
+        # Get current hour in IST (UTC + 5:30)
+        HOUR=$(TZ='Asia/Kolkata' date +%H)
+        
+        # Morning window (10-12)
+        if [ "$HOUR" -ge 10 ] && [ "$HOUR" -lt 12 ]; then
+          echo "direction=home_to_office" >> $GITHUB_OUTPUT
+        # Evening window (16-18)
+        elif [ "$HOUR" -ge 16 ] && [ "$HOUR" -lt 18 ]; then
+          echo "direction=office_to_home" >> $GITHUB_OUTPUT
+        else
+          echo "direction=home_to_office" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Run traffic monitor
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        TIMEZONE: Asia/Kolkata
+      run: |
+        # Use manual input direction if workflow_dispatch, otherwise use time-based
+        DIRECTION="${{ github.event.inputs.direction }}"
+        if [ -z "$DIRECTION" ]; then
+          DIRECTION="${{ steps.direction.outputs.direction }}"
+        fi
+        
+        python traffic_monitor.py --direction $DIRECTION
+    
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: traffic-monitor-logs-${{ github.run_number }}
+        path: traffic_monitor.log
+        retention-days: 7
+
