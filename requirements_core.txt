@@ -1,0 +1,14 @@
+# Traffic Monitor Dependencies - Core packages
+
+# Web browser automation (updated for Python 3.13 support)
+playwright==1.48.0
+
+# Supabase Python client (updated for compatibility)
+supabase==2.10.0
+
+# Environment variable management
+python-dotenv==1.0.0
+
+# Timezone support
+pytz==2024.1
+
